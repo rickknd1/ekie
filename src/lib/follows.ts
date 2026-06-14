@@ -2,6 +2,7 @@
 const FOLLOW_KEY = "ekie:follows";
 const DEVICE_KEY = "ekie:device";
 const VILLE_KEY = "ekie:ville";
+const ZONE_KEY = "ekie:zone";
 
 export function getDeviceId(): string {
   if (typeof window === "undefined") return "";
@@ -48,4 +49,14 @@ export function getSelectedVille(): string {
 
 export function setSelectedVille(id: string) {
   if (typeof window !== "undefined") localStorage.setItem(VILLE_KEY, id);
+}
+
+// Zone de l'utilisateur = son quartier ancré (auto-localisé ou saisi).
+export function getZone(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ZONE_KEY);
+}
+
+export function setZone(quartierId: string) {
+  if (typeof window !== "undefined") localStorage.setItem(ZONE_KEY, quartierId);
 }

@@ -7,10 +7,11 @@ import { ETAT_COLOR, type Quartier, type Ville } from "@/lib/data";
 interface Props {
   ville: Ville;
   quartiers: Quartier[];
+  youId?: string | null;
   onSelect?: (id: string) => void;
 }
 
-export default function MapView({ ville, quartiers, onSelect }: Props) {
+export default function MapView({ ville, quartiers, youId, onSelect }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -77,7 +78,15 @@ export default function MapView({ ville, quartiers, onSelect }: Props) {
           .addTo(layer);
       }
     });
-  }, [quartiers]);
+    // marqueur "tu es ici"
+    const you = quartiers.find((q) => q.id === youId);
+    if (you) {
+      L.marker([you.lat, you.lng], {
+        zIndexOffset: 1000,
+        icon: L.divIcon({ className: "", html: `<div class="you-dot"></div>`, iconSize: [16, 16] }),
+      }).addTo(layer);
+    }
+  }, [quartiers, youId]);
 
   return <div ref={elRef} className="absolute inset-0" />;
 }
