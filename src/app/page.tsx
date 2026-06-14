@@ -7,6 +7,7 @@ import { Zap, Bell, LocateFixed } from "lucide-react";
 import { VILLES, getVille, getQuartier, quartiersDeVille } from "@/lib/data";
 import { getZone, setZone, getDeviceId } from "@/lib/follows";
 import { fetchEtats, applyEtats, signaler, subscribeSignalements, type EtatLive } from "@/lib/api";
+import { registerSW } from "@/lib/push";
 import SignalModal from "@/components/SignalModal";
 import LocateModal from "@/components/LocateModal";
 import MobileSheet, { type Snap } from "@/components/MobileSheet";
@@ -34,6 +35,7 @@ export default function Home() {
     if (z && getQuartier(z)) setZoneId(z);
     else setLocateOpen(true);
     setReady(true);
+    registerSW();
     refresh();
     const unsub = subscribeSignalements(refresh);
     return unsub;
@@ -59,6 +61,17 @@ export default function Home() {
     if (res.ok) {
       setToast(type === "coupure" ? "Coupure signalée. Merci 🙏" : "Rétablissement signalé. Merci 🙏");
       refresh();
+      // prévient les abonnés du quartier (Web Push)
+      fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quartierId,
+          quartierNom: getQuartier(quartierId)?.nom,
+          type,
+          deviceId: getDeviceId(),
+        }),
+      }).catch(() => {});
     } else if (res.error === "deja_signale") {
       setToast("Tu as déjà signalé ce quartier il y a moins de 30 min.");
     } else {

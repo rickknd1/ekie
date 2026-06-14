@@ -4,16 +4,44 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Bell, Zap, ZapOff, Check } from "lucide-react";
 import { getQuartier, getVille, ETAT_LABEL, formatDepuis } from "@/lib/data";
 import { isFollowing, toggleFollow } from "@/lib/follows";
+import { subscribePush, unsubscribePush } from "@/lib/push";
 
 export default function QuartierDetail() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const q = getQuartier(id);
   const [following, setFollowing] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (q) setFollowing(isFollowing(q.id));
   }, [q]);
+
+  async function onToggle(quartierId: string) {
+    if (busy) return;
+    setBusy(true);
+    if (!following) {
+      const r = await subscribePush(quartierId);
+      toggleFollow(quartierId);
+      setFollowing(true);
+      if (!r.ok) {
+        setNote(
+          r.reason === "denied"
+            ? "Tu suis ce quartier. Autorise les notifications pour être alerté hors de l'app."
+            : "Tu suis ce quartier. Sur iPhone, ajoute Ekié à l'écran d'accueil pour recevoir les notifications."
+        );
+      } else {
+        setNote("Tu seras notifié dès que l'état change.");
+      }
+    } else {
+      await unsubscribePush(quartierId);
+      toggleFollow(quartierId);
+      setFollowing(false);
+      setNote(null);
+    }
+    setBusy(false);
+  }
 
   if (!q) {
     return (
@@ -84,7 +112,7 @@ export default function QuartierDetail() {
       </div>
 
       {/* suivre */}
-      <div className="mb-6 flex items-center justify-between rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5">
+      <div className="mb-2 flex items-center justify-between rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5">
         <div className="flex items-center gap-3">
           <Bell size={19} className="text-[var(--cyan)]" />
           <div>
@@ -93,10 +121,11 @@ export default function QuartierDetail() {
           </div>
         </div>
         <button
-          onClick={() => setFollowing(toggleFollow(q.id))}
-          className="h-[27px] w-[46px] rounded-full p-[3px] transition"
+          onClick={() => onToggle(q.id)}
+          className="h-[27px] w-[46px] rounded-full p-[3px] transition disabled:opacity-60"
           style={{ background: following ? "var(--cyan)" : "var(--line-strong)" }}
           aria-pressed={following}
+          disabled={busy}
         >
           <span
             className="block h-[21px] w-[21px] rounded-full bg-white transition"
@@ -104,6 +133,8 @@ export default function QuartierDetail() {
           />
         </button>
       </div>
+      {note && <p className="mb-6 px-1 text-[11px] text-[var(--txt-3)]">{note}</p>}
+      {!note && <div className="mb-6" />}
 
       {/* historique */}
       <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--txt-3)]">
