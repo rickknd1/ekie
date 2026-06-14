@@ -1,0 +1,14 @@
+{
+  "name": "Ekié — le courant est où ?",
+  "short_name": "Ekié",
+  "description": "Signale et suis en temps réel les coupures de courant dans ton quartier, au Cameroun.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0E14",
+  "theme_color": "#0A0E14",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

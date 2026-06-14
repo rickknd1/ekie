@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+:root{
+  --bg:#0A0E14; --surface:#10151E; --surface-2:#151B26;
+  --line:#1E2632; --line-strong:#2A3342;
+  --txt:#F4F6FA; --txt-2:#9AA3B2; --txt-3:#5C6573;
+  --cyan:#22D3EE; --cyan-ink:#06141A;
+  --red:#F0506E; --green:#34D399; --gray:#7C8696;
+}
+
+*{ -webkit-tap-highlight-color:transparent; }
+html,body{ background:var(--bg); color:var(--txt); }
+body{ overscroll-behavior:none; font-family:var(--font-jakarta), system-ui, sans-serif; }
+
+/* hide scrollbar */
+.no-sb::-webkit-scrollbar{ display:none; }
+.no-sb{ -ms-overflow-style:none; scrollbar-width:none; }
+
+/* leaflet */
+.leaflet-container{ background:var(--bg); font-family:inherit; outline:none; }
+.leaflet-control-attribution{ display:none; }
+.count{ background:var(--bg); color:#fff; border:1.5px solid; border-radius:99px;
+  font:700 11px/1 var(--font-jakarta), sans-serif; width:22px; height:22px;
+  display:flex; align-items:center; justify-content:center; }
+
+@keyframes sheetUp{ from{ transform:translateY(100%);} to{ transform:translateY(0);} }
+@keyframes fade{ from{ opacity:0;} to{ opacity:1;} }
+.anim-sheet{ animation:sheetUp .3s cubic-bezier(.2,.8,.2,1); }
+.anim-fade{ animation:fade .25s ease; }
