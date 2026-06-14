@@ -10,10 +10,12 @@ export default function LocateModal({
   onClose,
   onSet,
   canClose = true,
+  title = "Ta zone",
 }: {
   onClose: () => void;
   onSet: (zone: Quartier) => void;
   canClose?: boolean;
+  title?: string;
 }) {
   const [status, setStatus] = useState<"idle" | "locating" | "error">("idle");
   const [errMsg, setErrMsg] = useState("");
@@ -91,7 +93,7 @@ export default function LocateModal({
       <div className="anim-sheet flex max-h-[88dvh] w-full max-w-[460px] flex-col rounded-t-[22px] border-t border-[var(--line)] bg-[var(--surface)] px-5 pb-7 pt-3 sm:rounded-[22px] sm:border">
         <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-[var(--line-strong)] sm:hidden" />
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-[19px] font-bold tracking-tight">Ta zone</h2>
+          <h2 className="text-[19px] font-bold tracking-tight">{title}</h2>
           {canClose && (
             <button
               onClick={onClose}

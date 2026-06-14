@@ -8,10 +8,11 @@ interface Props {
   ville: Ville;
   quartiers: Quartier[];
   youId?: string | null;
+  focus?: { lat: number; lng: number; nonce: number } | null;
   onSelect?: (id: string) => void;
 }
 
-export default function MapView({ ville, quartiers, youId, onSelect }: Props) {
+export default function MapView({ ville, quartiers, youId, focus, onSelect }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -48,6 +49,14 @@ export default function MapView({ ville, quartiers, youId, onSelect }: Props) {
   useEffect(() => {
     mapRef.current?.setView([ville.lat, ville.lng], ville.zoom, { animate: true });
   }, [ville]);
+
+  // recentrage explicite (bouton recentrer / focus sur un lieu)
+  useEffect(() => {
+    if (focus && mapRef.current) {
+      const z = Math.max(mapRef.current.getZoom(), 14);
+      mapRef.current.setView([focus.lat, focus.lng], z, { animate: true });
+    }
+  }, [focus]);
 
   // draw circles + badges
   useEffect(() => {

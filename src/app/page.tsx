@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Bell, LocateFixed } from "lucide-react";
+import { Zap, Bell, LocateFixed, Search } from "lucide-react";
 import { VILLES, getVille, type Quartier } from "@/lib/data";
 import { getZone, setZone, getDeviceId } from "@/lib/follows";
 import { quartiersOfVille, resolveQuartier, saveZone } from "@/lib/zones";
@@ -21,7 +21,8 @@ export default function Home() {
   const [zoneId, setZoneId] = useState<string | null>(null);
   const [live, setLive] = useState<Record<string, EtatLive> | null>(null);
   const [signalOpen, setSignalOpen] = useState(false);
-  const [locateOpen, setLocateOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"locate" | "explore" | null>(null);
+  const [focus, setFocus] = useState<{ lat: number; lng: number; nonce: number } | null>(null);
   const [snap, setSnap] = useState<Snap>("collapsed");
   const [toast, setToast] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -34,7 +35,7 @@ export default function Home() {
   useEffect(() => {
     const z = getZone();
     if (z && resolveQuartier(z)) setZoneId(z);
-    else setLocateOpen(true);
+    else setModalMode("locate");
     setReady(true);
     registerSW();
     refresh();
@@ -54,7 +55,21 @@ export default function Home() {
     saveZone(zone);
     setZone(zone.id);
     setZoneId(zone.id);
-    setLocateOpen(false);
+    setModalMode(null);
+    setFocus({ lat: zone.lat, lng: zone.lng, nonce: Date.now() });
+  }
+
+  // recentrer la carte sur ma zone (ou ouvrir la localisation si aucune)
+  function recenter() {
+    if (zone) setFocus({ lat: zone.lat, lng: zone.lng, nonce: Date.now() });
+    else setModalMode("locate");
+  }
+
+  // vérifier un autre quartier sans changer ma zone → on l'ouvre en détail
+  function exploreZone(z: Quartier) {
+    saveZone(z);
+    setModalMode(null);
+    router.push(`/quartier/${z.id}`);
   }
 
   async function onSignal(type: "coupure" | "retablissement", quartierId: string) {
@@ -99,12 +114,18 @@ export default function Home() {
 
   return (
     <main className="relative h-[100dvh] w-full overflow-hidden">
-      <MapView ville={ville} quartiers={quartiers} youId={zoneId} onSelect={(id) => router.push(`/quartier/${id}`)} />
+      <MapView
+        ville={ville}
+        quartiers={quartiers}
+        youId={zoneId}
+        focus={focus}
+        onSelect={(id) => router.push(`/quartier/${id}`)}
+      />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[610] h-32 bg-gradient-to-b from-[var(--bg)] to-transparent" />
 
       <header className="absolute inset-x-0 top-0 z-[620] flex items-center justify-between px-5 pt-5">
-        <button onClick={() => setLocateOpen(true)} className="flex items-center gap-3 text-left">
+        <button onClick={() => setModalMode("locate")} className="flex items-center gap-3 text-left">
           <div className="flex h-9 w-9 items-center justify-center rounded-[11px] border border-[var(--line-strong)] bg-[var(--surface)]">
             <Zap size={18} className="text-[var(--cyan)]" />
           </div>
@@ -130,6 +151,24 @@ export default function Home() {
           <Bell size={18} className="text-[var(--cyan)]" />
         </Link>
       </header>
+
+      {/* contrôles carte : recentrer + vérifier un quartier */}
+      <div className="absolute right-5 top-[78px] z-[618] flex flex-col gap-2">
+        <button
+          onClick={recenter}
+          aria-label="Recentrer sur ma zone"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]"
+        >
+          <LocateFixed size={18} className="text-[var(--txt)]" />
+        </button>
+        <button
+          onClick={() => setModalMode("explore")}
+          aria-label="Vérifier un quartier"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]"
+        >
+          <Search size={18} className="text-[var(--txt)]" />
+        </button>
+      </div>
 
       {/* DESKTOP : panneau latéral */}
       <aside className="absolute bottom-5 left-5 top-24 z-[615] hidden w-[360px] flex-col overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)] md:flex">
@@ -166,8 +205,13 @@ export default function Home() {
         </button>
       )}
 
-      {ready && locateOpen && (
-        <LocateModal onClose={() => setLocateOpen(false)} onSet={chooseZone} canClose={Boolean(zone)} />
+      {ready && modalMode && (
+        <LocateModal
+          title={modalMode === "explore" ? "Vérifier un quartier" : "Ta zone"}
+          onClose={() => setModalMode(null)}
+          onSet={modalMode === "explore" ? exploreZone : chooseZone}
+          canClose={modalMode === "explore" || Boolean(zone)}
+        />
       )}
 
       {signalOpen && (
