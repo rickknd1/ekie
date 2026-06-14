@@ -9,11 +9,20 @@ interface Props {
   quartiers: Quartier[];
   youId?: string | null;
   pinnedIds?: string[];
+  followedIds?: string[];
   focus?: { lat: number; lng: number; nonce: number } | null;
   onSelect?: (id: string) => void;
 }
 
-export default function MapView({ ville, quartiers, youId, pinnedIds, focus, onSelect }: Props) {
+export default function MapView({
+  ville,
+  quartiers,
+  youId,
+  pinnedIds,
+  followedIds,
+  focus,
+  onSelect,
+}: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -73,6 +82,7 @@ export default function MapView({ ville, quartiers, youId, pinnedIds, focus, onS
     if (!layer) return;
     layer.clearLayers();
     const pins = new Set(pinnedIds || []);
+    const followed = new Set(followedIds || []);
     quartiers.forEach((q) => {
       if (q.etat !== "inconnu") {
         // quartier avec un vrai signal → cercle coloré + compteur
@@ -86,6 +96,16 @@ export default function MapView({ ville, quartiers, youId, pinnedIds, focus, onS
         })
           .on("click", () => onSelectRef.current?.(q.id))
           .addTo(layer);
+        if (followed.has(q.id)) {
+          // anneau cyan = suivi
+          L.circle([q.lat, q.lng], {
+            radius: 1180,
+            color: "#22D3EE",
+            weight: 1.5,
+            fill: false,
+            dashArray: "4 4",
+          }).addTo(layer);
+        }
         if (q.signalements > 0) {
           L.marker([q.lat, q.lng], {
             icon: L.divIcon({
@@ -97,6 +117,23 @@ export default function MapView({ ville, quartiers, youId, pinnedIds, focus, onS
             .on("click", () => onSelectRef.current?.(q.id))
             .addTo(layer);
         }
+      } else if (followed.has(q.id)) {
+        // quartier suivi sans données → cercle cyan pointillé + repère
+        L.circle([q.lat, q.lng], {
+          radius: 1050,
+          color: "#22D3EE",
+          weight: 1.5,
+          fillColor: "#22D3EE",
+          fillOpacity: 0.05,
+          dashArray: "5 5",
+        })
+          .on("click", () => onSelectRef.current?.(q.id))
+          .addTo(layer);
+        L.marker([q.lat, q.lng], {
+          icon: L.divIcon({ className: "", html: `<div class="follow-dot"></div>`, iconSize: [12, 12] }),
+        })
+          .on("click", () => onSelectRef.current?.(q.id))
+          .addTo(layer);
       } else if (pins.has(q.id) && q.id !== youId) {
         // quartier exploré (sans données) → petit pin neutre cliquable
         L.marker([q.lat, q.lng], {
@@ -116,7 +153,7 @@ export default function MapView({ ville, quartiers, youId, pinnedIds, focus, onS
         .on("click", () => onSelectRef.current?.(you.id))
         .addTo(layer);
     }
-  }, [quartiers, youId, pinnedIds]);
+  }, [quartiers, youId, pinnedIds, followedIds]);
 
   return <div ref={elRef} className="absolute inset-0" />;
 }

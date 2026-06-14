@@ -29,6 +29,8 @@ body{ position:fixed; inset:0; width:100%; overflow:hidden; overscroll-behavior:
   border:3px solid var(--bg); box-shadow:0 0 0 5px rgba(34,211,238,.22); }
 .pin{ width:14px; height:14px; border-radius:99px; background:var(--txt-2);
   border:2px solid var(--bg); box-shadow:0 0 0 3px rgba(255,255,255,.08); }
+.follow-dot{ width:12px; height:12px; border-radius:99px; background:var(--bg);
+  border:2px solid var(--cyan); box-shadow:0 0 0 2px rgba(34,211,238,.18); }
 
 @keyframes sheetUp{ from{ transform:translateY(100%);} to{ transform:translateY(0);} }
 @keyframes fade{ from{ opacity:0;} to{ opacity:1;} }

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Bell, LocateFixed, Search } from "lucide-react";
 import { VILLES, getVille, type Quartier } from "@/lib/data";
-import { getZone, setZone, getDeviceId } from "@/lib/follows";
+import { getZone, setZone, getDeviceId, getFollows } from "@/lib/follows";
 import { quartiersOfVille, resolveQuartier, saveZone } from "@/lib/zones";
 import { fetchEtats, applyEtats, signaler, subscribeSignalements, type EtatLive } from "@/lib/api";
 import { registerSW } from "@/lib/push";
@@ -24,6 +24,7 @@ export default function Home() {
   const [modalMode, setModalMode] = useState<"locate" | "explore" | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; nonce: number } | null>(null);
   const [pins, setPins] = useState<Quartier[]>([]);
+  const [followIds, setFollowIds] = useState<string[]>([]);
   const [snap, setSnap] = useState<Snap>("collapsed");
   const [toast, setToast] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -44,15 +45,34 @@ export default function Home() {
     return unsub;
   }, [refresh]);
 
+  // suivis : lus au montage + rafraîchis quand on revient sur la page
+  useEffect(() => {
+    const refreshFollows = () => setFollowIds(getFollows());
+    refreshFollows();
+    window.addEventListener("focus", refreshFollows);
+    document.addEventListener("visibilitychange", refreshFollows);
+    return () => {
+      window.removeEventListener("focus", refreshFollows);
+      document.removeEventListener("visibilitychange", refreshFollows);
+    };
+  }, []);
+
   const zone = zoneId ? resolveQuartier(zoneId) : null;
   const ville = (zone ? getVille(zone.villeId) : VILLES[0]) || VILLES[0];
   const quartiers = useMemo(() => {
     const base = quartiersOfVille(ville.id);
+    const followedQ = followIds
+      .map((id) => resolveQuartier(id))
+      .filter((q): q is Quartier => Boolean(q));
     const ids = new Set(base.map((q) => q.id));
-    const extra = pins.filter((p) => !ids.has(p.id));
+    const extra = [...pins, ...followedQ].filter((p) => {
+      if (ids.has(p.id)) return false;
+      ids.add(p.id);
+      return true;
+    });
     const merged = [...base, ...extra];
     return sortQuartiers(live ? applyEtats(merged, live) : merged);
-  }, [ville.id, live, zoneId, pins]);
+  }, [ville.id, live, zoneId, pins, followIds]);
   const nbCoupe = quartiers.filter((q) => q.etat === "coupe").length;
   const pinnedIds = useMemo(
     () => [...(zoneId ? [zoneId] : []), ...pins.map((p) => p.id)],
@@ -128,6 +148,7 @@ export default function Home() {
         quartiers={quartiers}
         youId={zoneId}
         pinnedIds={pinnedIds}
+        followedIds={followIds}
         focus={focus}
         onSelect={(id) => router.push(`/quartier/${id}`)}
       />
@@ -156,9 +177,15 @@ export default function Home() {
         </button>
         <Link
           href="/notifications"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]"
+          aria-label="Mes suivis"
+          className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)]"
         >
           <Bell size={18} className="text-[var(--cyan)]" />
+          {followIds.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--cyan)] px-1 text-[10px] font-bold text-[var(--cyan-ink)]">
+              {followIds.length}
+            </span>
+          )}
         </Link>
       </header>
 

@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Bell, BellOff, ChevronRight } from "lucide-react";
 import { getVille, formatDepuis, type Quartier } from "@/lib/data";
 import { resolveQuartier } from "@/lib/zones";
-import { getFollows } from "@/lib/follows";
+import { getFollows, toggleFollow } from "@/lib/follows";
+import { unsubscribePush } from "@/lib/push";
+import { fetchEtats, applyEtats } from "@/lib/api";
 
 export default function Notifications() {
   const router = useRouter();
@@ -13,22 +15,28 @@ export default function Notifications() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const qs = getFollows()
+    const base = getFollows()
       .map((id) => resolveQuartier(id))
       .filter((q): q is Quartier => Boolean(q));
-    setFollowed(qs);
+    setFollowed(base);
     setReady(true);
+    // état live
+    fetchEtats().then((m) => {
+      if (m) setFollowed(applyEtats(base, m));
+    });
   }, []);
 
-  // alertes simulées sur les quartiers suivis (démo)
+  function unfollow(id: string) {
+    unsubscribePush(id);
+    toggleFollow(id);
+    setFollowed((list) => list.filter((q) => q.id !== id));
+  }
+
   const alerts = followed
     .filter((q) => q.etat !== "inconnu")
     .map((q) => ({
       q,
-      text:
-        q.etat === "coupe"
-          ? `Coupure signalée à ${q.nom}`
-          : `Le courant est revenu à ${q.nom}`,
+      text: q.etat === "coupe" ? `Coupure signalée à ${q.nom}` : `Le courant est revenu à ${q.nom}`,
       t: q.etat === "coupe" ? `il y a ${formatDepuis(q.depuisMin)}` : "récemment",
     }));
 
@@ -41,7 +49,7 @@ export default function Notifications() {
         >
           <ArrowLeft size={18} className="text-[var(--txt-2)]" />
         </button>
-        <h1 className="text-[19px] font-bold tracking-tight">Notifications</h1>
+        <h1 className="text-[19px] font-bold tracking-tight">Mes suivis</h1>
       </div>
 
       {!ready ? null : followed.length === 0 ? (
@@ -62,8 +70,7 @@ export default function Notifications() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-y-auto no-sb">
-          {/* alertes récentes */}
+        <div className="overflow-y-auto no-sb pb-6">
           {alerts.length > 0 && (
             <>
               <SectionTitle>Récentes</SectionTitle>
@@ -99,23 +106,39 @@ export default function Notifications() {
             </>
           )}
 
-          {/* quartiers suivis */}
-          <SectionTitle>Quartiers suivis</SectionTitle>
+          <SectionTitle>Quartiers suivis ({followed.length})</SectionTitle>
           <div className="divide-y divide-[var(--line)]">
             {followed.map((q) => {
               const color =
                 q.etat === "coupe" ? "var(--red)" : q.etat === "ok" ? "var(--green)" : "var(--gray)";
+              const meta =
+                q.etat === "coupe"
+                  ? `coupé · ${formatDepuis(q.depuisMin)}`
+                  : q.etat === "ok"
+                  ? "rétabli"
+                  : "pas de signalement";
               return (
-                <Link key={q.id} href={`/quartier/${q.id}`} className="flex items-center justify-between py-3.5">
-                  <div className="flex items-center gap-3">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+                <div key={q.id} className="flex items-center justify-between py-3">
+                  <button
+                    onClick={() => router.push(`/quartier/${q.id}`)}
+                    className="flex flex-1 items-center gap-3 text-left"
+                  >
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
                     <div>
                       <div className="text-sm font-semibold">{q.nom}</div>
-                      <div className="text-[11px] text-[var(--txt-3)]">{getVille(q.villeId)?.nom}</div>
+                      <div className="text-[11px] text-[var(--txt-3)]">
+                        {getVille(q.villeId)?.nom} · {meta}
+                      </div>
                     </div>
-                  </div>
-                  <ChevronRight size={16} className="text-[var(--txt-3)]" />
-                </Link>
+                  </button>
+                  <button
+                    onClick={() => unfollow(q.id)}
+                    aria-label="Ne plus suivre"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--line)] text-[var(--txt-3)] transition hover:text-[var(--red)]"
+                  >
+                    <BellOff size={16} />
+                  </button>
+                </div>
               );
             })}
           </div>
