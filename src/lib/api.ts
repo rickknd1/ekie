@@ -1,7 +1,14 @@
 import { supabase, isSupabase } from "@/lib/supabase";
 import type { Quartier, Etat } from "@/lib/data";
 
-export type EtatLive = { etat: Etat; depuisMin?: number; nb: number };
+export type EtatLive = {
+  etat: Etat;
+  depuisMin?: number;
+  nb: number;
+  nom?: string;
+  lat?: number;
+  lng?: number;
+};
 
 // État courant par quartier depuis la BDD. null = Supabase non configuré (→ on garde le mock).
 export async function fetchEtats(): Promise<Record<string, EtatLive> | null> {
@@ -9,13 +16,46 @@ export async function fetchEtats(): Promise<Record<string, EtatLive> | null> {
   const { data, error } = await supabase.rpc("etats");
   if (error || !data) return {};
   const map: Record<string, EtatLive> = {};
-  for (const r of data as { quartier_id: string; etat: string; depuis: string; nb: number }[]) {
+  for (const r of data as {
+    quartier_id: string;
+    etat: string;
+    depuis: string;
+    nb: number;
+    nom: string | null;
+    lat: number | null;
+    lng: number | null;
+  }[]) {
     const depuisMin = r.depuis
       ? Math.max(0, Math.round((Date.now() - new Date(r.depuis).getTime()) / 60000))
       : undefined;
-    map[r.quartier_id] = { etat: r.etat as Etat, depuisMin, nb: r.nb };
+    map[r.quartier_id] = {
+      etat: r.etat as Etat,
+      depuisMin,
+      nb: r.nb,
+      nom: r.nom ?? undefined,
+      lat: r.lat ?? undefined,
+      lng: r.lng ?? undefined,
+    };
   }
   return map;
+}
+
+// Enregistre les coordonnées d'une zone côté serveur (pour qu'elle soit visible par tous).
+export async function registerZone(z: {
+  id: string;
+  nom: string;
+  villeId?: string;
+  lat: number;
+  lng: number;
+}): Promise<void> {
+  if (!supabase) return;
+  await supabase.rpc("register_zone", {
+    p_id: z.id,
+    p_nom: z.nom,
+    p_ville: z.villeId ?? "",
+    p_lat: z.lat,
+    p_lng: z.lng,
+  });
 }
 
 // Applique les états live sur la liste de quartiers de référence.

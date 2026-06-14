@@ -7,7 +7,14 @@ import { Zap, Bell, LocateFixed, Search } from "lucide-react";
 import { VILLES, getVille, type Quartier } from "@/lib/data";
 import { getZone, setZone, getDeviceId, getFollows } from "@/lib/follows";
 import { quartiersOfVille, resolveQuartier, saveZone } from "@/lib/zones";
-import { fetchEtats, applyEtats, signaler, subscribeSignalements, type EtatLive } from "@/lib/api";
+import {
+  fetchEtats,
+  applyEtats,
+  signaler,
+  subscribeSignalements,
+  registerZone,
+  type EtatLive,
+} from "@/lib/api";
 import { registerSW } from "@/lib/push";
 import SignalModal from "@/components/SignalModal";
 import LocateModal from "@/components/LocateModal";
@@ -70,7 +77,24 @@ export default function Home() {
       ids.add(p.id);
       return true;
     });
-    const merged = [...base, ...extra];
+    // zones signalées connues du serveur (avec coords) → visibles par TOUS
+    const fromLive: Quartier[] = live
+      ? Object.entries(live)
+          .filter(([id, e]) => e.lat != null && e.lng != null && !ids.has(id))
+          .map(([id, e]) => {
+            ids.add(id);
+            return {
+              id,
+              nom: e.nom || id,
+              villeId: "",
+              lat: e.lat as number,
+              lng: e.lng as number,
+              etat: "inconnu" as const,
+              signalements: 0,
+            };
+          })
+      : [];
+    const merged = [...base, ...extra, ...fromLive];
     return sortQuartiers(live ? applyEtats(merged, live) : merged);
   }, [ville.id, live, zoneId, pins, followIds]);
   const nbCoupe = quartiers.filter((q) => q.etat === "coupe").length;
@@ -81,6 +105,7 @@ export default function Home() {
 
   function chooseZone(zone: Quartier) {
     saveZone(zone);
+    registerZone(zone);
     setZone(zone.id);
     setZoneId(zone.id);
     setModalMode(null);
@@ -96,6 +121,7 @@ export default function Home() {
   // vérifier un autre quartier sans changer ma zone → on vole sur la carte + on pose un pin
   function exploreZone(z: Quartier) {
     saveZone(z);
+    registerZone(z);
     setPins((p) => (p.some((x) => x.id === z.id) ? p : [...p, z]));
     setModalMode(null);
     setFocus({ lat: z.lat, lng: z.lng, nonce: Date.now() });
@@ -103,6 +129,8 @@ export default function Home() {
 
   async function onSignal(type: "coupure" | "retablissement", quartierId: string) {
     setSignalOpen(false);
+    const q = resolveQuartier(quartierId);
+    if (q) await registerZone(q); // partage les coordonnées → visible par tous
     const res = await signaler(quartierId, type, getDeviceId());
     if (res.ok) {
       setToast(type === "coupure" ? "Coupure signalée. Merci 🙏" : "Rétablissement signalé. Merci 🙏");
