@@ -29,14 +29,22 @@ export default function MapView({ ville, quartiers, youId, pinnedIds, focus, onS
       center: [ville.lat, ville.lng],
       zoom: ville.zoom,
     });
-    L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19 }
-    ).addTo(map);
-    L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19 }
-    ).addTo(map);
+    const maptiler = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+    if (maptiler) {
+      // fond sombre riche (détail/POI/labels niveau premium)
+      L.tileLayer(
+        `https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}@2x.png?key=${maptiler}`,
+        { tileSize: 512, zoomOffset: -1, maxZoom: 20, crossOrigin: true }
+      ).addTo(map);
+    } else {
+      // repli Carto dark (sans clé)
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+    }
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     setTimeout(() => map.invalidateSize(), 60);
