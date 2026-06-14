@@ -5,6 +5,7 @@ import { ArrowLeft, Bell, Zap, ZapOff, Check } from "lucide-react";
 import { getQuartier, getVille, ETAT_LABEL, formatDepuis } from "@/lib/data";
 import { isFollowing, toggleFollow } from "@/lib/follows";
 import { subscribePush, unsubscribePush } from "@/lib/push";
+import { fetchEtats, type EtatLive } from "@/lib/api";
 
 export default function QuartierDetail() {
   const router = useRouter();
@@ -13,9 +14,21 @@ export default function QuartierDetail() {
   const [following, setFollowing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [live, setLive] = useState<EtatLive | null>(null);
 
   useEffect(() => {
     if (q) setFollowing(isFollowing(q.id));
+  }, [q]);
+
+  useEffect(() => {
+    if (!q) return;
+    let on = true;
+    fetchEtats().then((m) => {
+      if (on && m) setLive(m[q.id] ?? { etat: "inconnu", nb: 0 });
+    });
+    return () => {
+      on = false;
+    };
   }, [q]);
 
   async function onToggle(quartierId: string) {
@@ -55,16 +68,21 @@ export default function QuartierDetail() {
   }
 
   const ville = getVille(q.villeId);
-  const isCoupe = q.etat === "coupe";
-  const color = isCoupe ? "var(--red)" : q.etat === "ok" ? "var(--green)" : "var(--gray)";
+  const etat = live ? live.etat : q.etat;
+  const depuisMin = live ? live.depuisMin : q.depuisMin;
+  const nb = live ? live.nb : q.signalements;
+  const isCoupe = etat === "coupe";
+  const color = isCoupe ? "var(--red)" : etat === "ok" ? "var(--green)" : "var(--gray)";
 
   const history =
-    q.etat === "inconnu"
+    etat === "inconnu"
       ? []
       : [
-          { etat: "coupe", label: "Coupure signalée", t: "il y a 12 min" },
-          { etat: "coupe", label: "Coupure signalée", t: "il y a 40 min" },
-          { etat: "ok", label: "Rétablissement", t: "il y a 3 h" },
+          {
+            etat,
+            label: isCoupe ? "Coupure signalée" : "Rétablissement",
+            t: depuisMin != null ? `il y a ${formatDepuis(depuisMin)}` : "récemment",
+          },
         ];
 
   return (
@@ -93,20 +111,20 @@ export default function QuartierDetail() {
         >
           {isCoupe ? (
             <ZapOff size={26} style={{ color }} />
-          ) : q.etat === "ok" ? (
+          ) : etat === "ok" ? (
             <Zap size={26} style={{ color }} />
           ) : (
             <Bell size={26} style={{ color }} />
           )}
         </div>
         <div className="text-[22px] font-extrabold tracking-wide" style={{ color }}>
-          {ETAT_LABEL[q.etat].toUpperCase()}
+          {ETAT_LABEL[etat].toUpperCase()}
         </div>
         <div className="mt-1 text-sm text-[var(--txt-3)]">
           {isCoupe
-            ? `depuis ${formatDepuis(q.depuisMin)} · ${q.signalements} signalements`
-            : q.etat === "ok"
-            ? `${q.signalements} signalements`
+            ? `depuis ${formatDepuis(depuisMin)} · ${nb} signalement${nb > 1 ? "s" : ""}`
+            : etat === "ok"
+            ? `${nb} signalement${nb > 1 ? "s" : ""}`
             : "aucun signalement récent"}
         </div>
       </div>
