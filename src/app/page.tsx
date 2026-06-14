@@ -1,11 +1,12 @@
 "use client";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Bell, LocateFixed } from "lucide-react";
 import { VILLES, getVille, getQuartier, quartiersDeVille } from "@/lib/data";
-import { getZone, setZone } from "@/lib/follows";
+import { getZone, setZone, getDeviceId } from "@/lib/follows";
+import { fetchEtats, applyEtats, signaler, subscribeSignalements, type EtatLive } from "@/lib/api";
 import SignalModal from "@/components/SignalModal";
 import LocateModal from "@/components/LocateModal";
 import MobileSheet, { type Snap } from "@/components/MobileSheet";
@@ -16,22 +17,34 @@ const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 export default function Home() {
   const router = useRouter();
   const [zoneId, setZoneId] = useState<string | null>(null);
+  const [live, setLive] = useState<Record<string, EtatLive> | null>(null);
   const [signalOpen, setSignalOpen] = useState(false);
   const [locateOpen, setLocateOpen] = useState(false);
   const [snap, setSnap] = useState<Snap>("collapsed");
   const [toast, setToast] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
+  const refresh = useCallback(async () => {
+    const m = await fetchEtats();
+    setLive(m);
+  }, []);
+
   useEffect(() => {
     const z = getZone();
     if (z && getQuartier(z)) setZoneId(z);
-    else setLocateOpen(true); // 1re visite → demande la zone
+    else setLocateOpen(true);
     setReady(true);
-  }, []);
+    refresh();
+    const unsub = subscribeSignalements(refresh);
+    return unsub;
+  }, [refresh]);
 
   const zone = zoneId ? getQuartier(zoneId) : null;
   const ville = (zone ? getVille(zone.villeId) : VILLES[0]) || VILLES[0];
-  const quartiers = useMemo(() => sortQuartiers(quartiersDeVille(ville.id)), [ville.id]);
+  const quartiers = useMemo(() => {
+    const base = quartiersDeVille(ville.id);
+    return sortQuartiers(live ? applyEtats(base, live) : base);
+  }, [ville.id, live]);
   const nbCoupe = quartiers.filter((q) => q.etat === "coupe").length;
 
   function chooseZone(quartierId: string) {
@@ -40,10 +53,18 @@ export default function Home() {
     setLocateOpen(false);
   }
 
-  function onSignalDone(type: "coupure" | "retablissement") {
+  async function onSignal(type: "coupure" | "retablissement", quartierId: string) {
     setSignalOpen(false);
-    setToast(type === "coupure" ? "Coupure signalée. Merci 🙏" : "Rétablissement signalé. Merci 🙏");
-    setTimeout(() => setToast(null), 2600);
+    const res = await signaler(quartierId, type, getDeviceId());
+    if (res.ok) {
+      setToast(type === "coupure" ? "Coupure signalée. Merci 🙏" : "Rétablissement signalé. Merci 🙏");
+      refresh();
+    } else if (res.error === "deja_signale") {
+      setToast("Tu as déjà signalé ce quartier il y a moins de 30 min.");
+    } else {
+      setToast("Oups, réessaie dans un instant.");
+    }
+    setTimeout(() => setToast(null), 2800);
   }
 
   const Badge = (
@@ -67,16 +88,13 @@ export default function Home() {
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[610] h-32 bg-gradient-to-b from-[var(--bg)] to-transparent" />
 
-      {/* header : zone (localisation) */}
       <header className="absolute inset-x-0 top-0 z-[620] flex items-center justify-between px-5 pt-5">
         <button onClick={() => setLocateOpen(true)} className="flex items-center gap-3 text-left">
           <div className="flex h-9 w-9 items-center justify-center rounded-[11px] border border-[var(--line-strong)] bg-[var(--surface)]">
             <Zap size={18} className="text-[var(--cyan)]" />
           </div>
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-[var(--txt-3)] leading-none">
-              Ma zone
-            </div>
+            <div className="text-[11px] uppercase tracking-wider text-[var(--txt-3)] leading-none">Ma zone</div>
             <div className="flex items-center gap-1 text-[17px] font-bold tracking-tight">
               {zone ? (
                 <>
@@ -122,7 +140,7 @@ export default function Home() {
         <List quartiers={quartiers} />
       </MobileSheet>
 
-      {/* FAB (mobile) — suit l'état de la sheet */}
+      {/* FAB (mobile) */}
       {snap !== "full" && (
         <button
           onClick={() => setSignalOpen(true)}
@@ -134,11 +152,7 @@ export default function Home() {
       )}
 
       {ready && locateOpen && (
-        <LocateModal
-          onClose={() => setLocateOpen(false)}
-          onSet={chooseZone}
-          canClose={Boolean(zone)}
-        />
+        <LocateModal onClose={() => setLocateOpen(false)} onSet={chooseZone} canClose={Boolean(zone)} />
       )}
 
       {signalOpen && (
@@ -146,7 +160,7 @@ export default function Home() {
           quartiers={quartiers}
           defaultQuartierId={zoneId ?? undefined}
           onClose={() => setSignalOpen(false)}
-          onDone={onSignalDone}
+          onDone={onSignal}
         />
       )}
 
@@ -161,11 +175,7 @@ export default function Home() {
 
 function List({ quartiers }: { quartiers: ReturnType<typeof quartiersDeVille> }) {
   if (quartiers.length === 0)
-    return (
-      <p className="py-8 text-center text-sm text-[var(--txt-3)]">
-        Aucun quartier pour cette ville.
-      </p>
-    );
+    return <p className="py-8 text-center text-sm text-[var(--txt-3)]">Aucun quartier pour cette ville.</p>;
   return (
     <div className="divide-y divide-[var(--line)]">
       {quartiers.map((q) => (
