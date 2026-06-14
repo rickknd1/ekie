@@ -30,13 +30,17 @@ export default function LocateModal({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const res = nearestQuartier(pos.coords.latitude, pos.coords.longitude);
-        if (res) {
-          setFound(res);
-          setStatus("idle");
-        } else {
+        if (!res) {
           setStatus("error");
-          setErrMsg("Aucune zone trouvée près de toi.");
+          setErrMsg("Aucune zone trouvée.");
+          return;
         }
+        if (res.distanceKm <= 80) {
+          onSet(res.quartier.id); // assez proche → on valide direct
+          return;
+        }
+        setFound(res); // loin (ex. hors Cameroun) → on propose mais on invite à chercher
+        setStatus("idle");
       },
       (err) => {
         setStatus("error");
@@ -95,28 +99,33 @@ export default function LocateModal({
 
         {/* résultat auto */}
         {found && (
-          <div className="mt-3 flex items-center justify-between rounded-[12px] border border-[rgba(34,211,238,0.35)] bg-[rgba(34,211,238,0.07)] px-4 py-3">
-            <div className="flex items-center gap-2.5">
-              <MapPin size={16} className="text-[var(--cyan)]" />
-              <div>
-                <div className="text-sm font-semibold">
-                  {found.quartier.nom}
-                  <span className="font-normal text-[var(--txt-3)]">
-                    {" "}
-                    · {getVille(found.quartier.villeId)?.nom}
-                  </span>
-                </div>
-                <div className="text-[11px] text-[var(--txt-3)]">
-                  à ~{found.distanceKm < 1 ? "moins d'1" : Math.round(found.distanceKm)} km de toi
+          <div className="mt-3 rounded-[12px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <MapPin size={16} className="text-[var(--txt-3)]" />
+                <div>
+                  <div className="text-sm font-semibold">
+                    {found.quartier.nom}
+                    <span className="font-normal text-[var(--txt-3)]">
+                      {" "}
+                      · {getVille(found.quartier.villeId)?.nom}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[var(--txt-3)]">
+                    zone couverte la plus proche · ~{Math.round(found.distanceKm)} km
+                  </div>
                 </div>
               </div>
+              <button
+                onClick={() => onSet(found.quartier.id)}
+                className="flex items-center gap-1.5 rounded-full bg-[var(--cyan)] px-3.5 py-1.5 text-[13px] font-bold text-[var(--cyan-ink)]"
+              >
+                <Check size={14} /> OK
+              </button>
             </div>
-            <button
-              onClick={() => onSet(found.quartier.id)}
-              className="flex items-center gap-1.5 rounded-full bg-[var(--cyan)] px-3.5 py-1.5 text-[13px] font-bold text-[var(--cyan-ink)]"
-            >
-              <Check size={14} /> OK
-            </button>
+            <p className="mt-2 text-[11px] text-[var(--txt-3)]">
+              Tu sembles loin des villes couvertes (Cameroun) — tu peux aussi choisir ta ville à la main 👇
+            </p>
           </div>
         )}
 

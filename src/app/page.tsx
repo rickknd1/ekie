@@ -93,7 +93,7 @@ export default function Home() {
   );
 
   const fabBottom =
-    snap === "collapsed" ? "calc(12vh + 16px)" : snap === "half" ? "calc(40vh + 16px)" : "0";
+    snap === "collapsed" ? "70px" : snap === "half" ? "calc(40dvh + 16px)" : "0";
 
   return (
     <main className="relative h-[100dvh] w-full overflow-hidden">

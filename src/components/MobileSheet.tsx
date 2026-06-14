@@ -3,10 +3,11 @@ import { useRef } from "react";
 import { ChevronUp } from "lucide-react";
 
 export type Snap = "collapsed" | "half" | "full";
+// hauteur de la sheet = 86dvh ; on la descend pour ne laisser qu'une barre fine quand "collapsed"
 const TRANSLATE: Record<Snap, string> = {
-  collapsed: "70vh",
-  half: "42vh",
-  full: "0vh",
+  collapsed: "calc(86dvh - 54px)", // ne laisse que la poignée + le titre → carte quasi plein écran
+  half: "46dvh",
+  full: "0dvh",
 };
 
 export default function MobileSheet({
@@ -41,16 +42,16 @@ export default function MobileSheet({
 
   return (
     <div
-      className="absolute inset-x-0 bottom-0 z-[615] h-[82vh] rounded-t-[20px] border-t border-[var(--line)] bg-[var(--surface)] px-5 transition-transform duration-300 md:hidden"
+      className="absolute inset-x-0 bottom-0 z-[615] h-[86dvh] rounded-t-[20px] border-t border-[var(--line)] bg-[var(--surface)] px-5 transition-transform duration-300 md:hidden"
       style={{ transform: `translateY(${TRANSLATE[snap]})` }}
     >
       <div
         onClick={cycle}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="cursor-pointer select-none pb-1 pt-2.5"
+        className="cursor-pointer select-none pb-2 pt-2"
       >
-        <div className="mx-auto mb-2.5 h-1 w-9 rounded-full bg-[var(--line-strong)]" />
+        <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--line-strong)]" />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-[15px] font-bold tracking-tight">{title}</span>
@@ -62,7 +63,7 @@ export default function MobileSheet({
           {badge}
         </div>
       </div>
-      <div className="h-[calc(82vh-92px)] overflow-y-auto no-sb">{children}</div>
+      <div className="h-[calc(86dvh-92px)] overflow-y-auto no-sb">{children}</div>
     </div>
   );
 }
