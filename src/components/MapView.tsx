@@ -8,11 +8,12 @@ interface Props {
   ville: Ville;
   quartiers: Quartier[];
   youId?: string | null;
+  pinnedIds?: string[];
   focus?: { lat: number; lng: number; nonce: number } | null;
   onSelect?: (id: string) => void;
 }
 
-export default function MapView({ ville, quartiers, youId, focus, onSelect }: Props) {
+export default function MapView({ ville, quartiers, youId, pinnedIds, focus, onSelect }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -63,39 +64,51 @@ export default function MapView({ ville, quartiers, youId, focus, onSelect }: Pr
     const layer = layerRef.current;
     if (!layer) return;
     layer.clearLayers();
+    const pins = new Set(pinnedIds || []);
     quartiers.forEach((q) => {
-      const color = getComputedColor(q.etat);
-      L.circle([q.lat, q.lng], {
-        radius: 1050,
-        color,
-        weight: 1.5,
-        fillColor: color,
-        fillOpacity: 0.18,
-      })
-        .on("click", () => onSelectRef.current?.(q.id))
-        .addTo(layer);
-      const badge = q.signalements > 0 ? q.signalements : q.etat === "inconnu" ? "?" : "";
-      if (badge !== "") {
+      if (q.etat !== "inconnu") {
+        // quartier avec un vrai signal → cercle coloré + compteur
+        const color = getComputedColor(q.etat);
+        L.circle([q.lat, q.lng], {
+          radius: 1050,
+          color,
+          weight: 1.5,
+          fillColor: color,
+          fillOpacity: 0.18,
+        })
+          .on("click", () => onSelectRef.current?.(q.id))
+          .addTo(layer);
+        if (q.signalements > 0) {
+          L.marker([q.lat, q.lng], {
+            icon: L.divIcon({
+              className: "",
+              html: `<div class="count" style="border-color:${color}">${q.signalements}</div>`,
+              iconSize: [22, 22],
+            }),
+          })
+            .on("click", () => onSelectRef.current?.(q.id))
+            .addTo(layer);
+        }
+      } else if (pins.has(q.id) && q.id !== youId) {
+        // quartier exploré (sans données) → petit pin neutre cliquable
         L.marker([q.lat, q.lng], {
-          icon: L.divIcon({
-            className: "",
-            html: `<div class="count" style="border-color:${color}">${badge}</div>`,
-            iconSize: [22, 22],
-          }),
+          icon: L.divIcon({ className: "", html: `<div class="pin"></div>`, iconSize: [14, 14] }),
         })
           .on("click", () => onSelectRef.current?.(q.id))
           .addTo(layer);
       }
     });
-    // marqueur "tu es ici"
+    // marqueur "tu es ici" (toujours visible, cliquable)
     const you = quartiers.find((q) => q.id === youId);
     if (you) {
       L.marker([you.lat, you.lng], {
         zIndexOffset: 1000,
         icon: L.divIcon({ className: "", html: `<div class="you-dot"></div>`, iconSize: [16, 16] }),
-      }).addTo(layer);
+      })
+        .on("click", () => onSelectRef.current?.(you.id))
+        .addTo(layer);
     }
-  }, [quartiers, youId]);
+  }, [quartiers, youId, pinnedIds]);
 
   return <div ref={elRef} className="absolute inset-0" />;
 }

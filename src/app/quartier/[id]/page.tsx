@@ -11,7 +11,9 @@ import { fetchEtats, type EtatLive } from "@/lib/api";
 export default function QuartierDetail() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const q = resolveQuartier(id);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const q = mounted ? resolveQuartier(id) : undefined;
   const [following, setFollowing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,6 +57,10 @@ export default function QuartierDetail() {
       setNote(null);
     }
     setBusy(false);
+  }
+
+  if (!mounted) {
+    return <main className="h-[100dvh] w-full" />;
   }
 
   if (!q) {

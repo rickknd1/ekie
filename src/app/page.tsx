@@ -23,6 +23,7 @@ export default function Home() {
   const [signalOpen, setSignalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"locate" | "explore" | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; nonce: number } | null>(null);
+  const [pins, setPins] = useState<Quartier[]>([]);
   const [snap, setSnap] = useState<Snap>("collapsed");
   const [toast, setToast] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -47,9 +48,16 @@ export default function Home() {
   const ville = (zone ? getVille(zone.villeId) : VILLES[0]) || VILLES[0];
   const quartiers = useMemo(() => {
     const base = quartiersOfVille(ville.id);
-    return sortQuartiers(live ? applyEtats(base, live) : base);
-  }, [ville.id, live, zoneId]);
+    const ids = new Set(base.map((q) => q.id));
+    const extra = pins.filter((p) => !ids.has(p.id));
+    const merged = [...base, ...extra];
+    return sortQuartiers(live ? applyEtats(merged, live) : merged);
+  }, [ville.id, live, zoneId, pins]);
   const nbCoupe = quartiers.filter((q) => q.etat === "coupe").length;
+  const pinnedIds = useMemo(
+    () => [...(zoneId ? [zoneId] : []), ...pins.map((p) => p.id)],
+    [zoneId, pins]
+  );
 
   function chooseZone(zone: Quartier) {
     saveZone(zone);
@@ -65,11 +73,12 @@ export default function Home() {
     else setModalMode("locate");
   }
 
-  // vérifier un autre quartier sans changer ma zone → on l'ouvre en détail
+  // vérifier un autre quartier sans changer ma zone → on vole sur la carte + on pose un pin
   function exploreZone(z: Quartier) {
     saveZone(z);
+    setPins((p) => (p.some((x) => x.id === z.id) ? p : [...p, z]));
     setModalMode(null);
-    router.push(`/quartier/${z.id}`);
+    setFocus({ lat: z.lat, lng: z.lng, nonce: Date.now() });
   }
 
   async function onSignal(type: "coupure" | "retablissement", quartierId: string) {
@@ -118,6 +127,7 @@ export default function Home() {
         ville={ville}
         quartiers={quartiers}
         youId={zoneId}
+        pinnedIds={pinnedIds}
         focus={focus}
         onSelect={(id) => router.push(`/quartier/${id}`)}
       />
@@ -233,11 +243,18 @@ export default function Home() {
 }
 
 function List({ quartiers }: { quartiers: Quartier[] }) {
-  if (quartiers.length === 0)
-    return <p className="py-8 text-center text-sm text-[var(--txt-3)]">Aucun quartier pour cette ville.</p>;
+  const withSignals = quartiers.filter((q) => q.etat !== "inconnu");
+  if (withSignals.length === 0)
+    return (
+      <p className="py-8 text-center text-sm leading-relaxed text-[var(--txt-3)]">
+        Aucune coupure signalée pour l&apos;instant.
+        <br />
+        Signale si tu es concerné 👆
+      </p>
+    );
   return (
     <div className="divide-y divide-[var(--line)]">
-      {quartiers.map((q) => (
+      {withSignals.map((q) => (
         <QuartierRow key={q.id} q={q} />
       ))}
     </div>
