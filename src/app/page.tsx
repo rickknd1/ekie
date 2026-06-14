@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Zap, Bell, LocateFixed } from "lucide-react";
-import { VILLES, getVille, getQuartier, quartiersDeVille } from "@/lib/data";
+import { VILLES, getVille, type Quartier } from "@/lib/data";
 import { getZone, setZone, getDeviceId } from "@/lib/follows";
+import { quartiersOfVille, resolveQuartier, saveZone } from "@/lib/zones";
 import { fetchEtats, applyEtats, signaler, subscribeSignalements, type EtatLive } from "@/lib/api";
 import { registerSW } from "@/lib/push";
 import SignalModal from "@/components/SignalModal";
@@ -32,7 +33,7 @@ export default function Home() {
 
   useEffect(() => {
     const z = getZone();
-    if (z && getQuartier(z)) setZoneId(z);
+    if (z && resolveQuartier(z)) setZoneId(z);
     else setLocateOpen(true);
     setReady(true);
     registerSW();
@@ -41,17 +42,18 @@ export default function Home() {
     return unsub;
   }, [refresh]);
 
-  const zone = zoneId ? getQuartier(zoneId) : null;
+  const zone = zoneId ? resolveQuartier(zoneId) : null;
   const ville = (zone ? getVille(zone.villeId) : VILLES[0]) || VILLES[0];
   const quartiers = useMemo(() => {
-    const base = quartiersDeVille(ville.id);
+    const base = quartiersOfVille(ville.id);
     return sortQuartiers(live ? applyEtats(base, live) : base);
-  }, [ville.id, live]);
+  }, [ville.id, live, zoneId]);
   const nbCoupe = quartiers.filter((q) => q.etat === "coupe").length;
 
-  function chooseZone(quartierId: string) {
-    setZone(quartierId);
-    setZoneId(quartierId);
+  function chooseZone(zone: Quartier) {
+    saveZone(zone);
+    setZone(zone.id);
+    setZoneId(zone.id);
     setLocateOpen(false);
   }
 
@@ -67,7 +69,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           quartierId,
-          quartierNom: getQuartier(quartierId)?.nom,
+          quartierNom: resolveQuartier(quartierId)?.nom,
           type,
           deviceId: getDeviceId(),
         }),
@@ -186,7 +188,7 @@ export default function Home() {
   );
 }
 
-function List({ quartiers }: { quartiers: ReturnType<typeof quartiersDeVille> }) {
+function List({ quartiers }: { quartiers: Quartier[] }) {
   if (quartiers.length === 0)
     return <p className="py-8 text-center text-sm text-[var(--txt-3)]">Aucun quartier pour cette ville.</p>;
   return (

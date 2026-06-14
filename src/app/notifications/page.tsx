@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Bell, BellOff, ChevronRight } from "lucide-react";
-import { getQuartier, getVille, formatDepuis, type Quartier } from "@/lib/data";
+import { getVille, formatDepuis, type Quartier } from "@/lib/data";
+import { resolveQuartier } from "@/lib/zones";
 import { getFollows } from "@/lib/follows";
 
 export default function Notifications() {
@@ -13,7 +14,7 @@ export default function Notifications() {
 
   useEffect(() => {
     const qs = getFollows()
-      .map((id) => getQuartier(id))
+      .map((id) => resolveQuartier(id))
       .filter((q): q is Quartier => Boolean(q));
     setFollowed(qs);
     setReady(true);

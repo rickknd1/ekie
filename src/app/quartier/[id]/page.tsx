@@ -2,7 +2,8 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Bell, Zap, ZapOff, Check } from "lucide-react";
-import { getQuartier, getVille, ETAT_LABEL, formatDepuis } from "@/lib/data";
+import { getVille, ETAT_LABEL, formatDepuis } from "@/lib/data";
+import { resolveQuartier } from "@/lib/zones";
 import { isFollowing, toggleFollow } from "@/lib/follows";
 import { subscribePush, unsubscribePush } from "@/lib/push";
 import { fetchEtats, type EtatLive } from "@/lib/api";
@@ -10,7 +11,7 @@ import { fetchEtats, type EtatLive } from "@/lib/api";
 export default function QuartierDetail() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const q = getQuartier(id);
+  const q = resolveQuartier(id);
   const [following, setFollowing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

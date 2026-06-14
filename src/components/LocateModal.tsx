@@ -1,8 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Search, LocateFixed, Loader2, MapPin, Check, AlertCircle } from "lucide-react";
 import { getVille, type Quartier } from "@/lib/data";
 import { nearestQuartier, searchQuartiers } from "@/lib/geo";
+import { geocode, type GeoPlace } from "@/lib/geocode";
+import { makeZone } from "@/lib/zones";
 
 export default function LocateModal({
   onClose,
@@ -10,14 +12,38 @@ export default function LocateModal({
   canClose = true,
 }: {
   onClose: () => void;
-  onSet: (quartierId: string) => void;
+  onSet: (zone: Quartier) => void;
   canClose?: boolean;
 }) {
   const [status, setStatus] = useState<"idle" | "locating" | "error">("idle");
   const [errMsg, setErrMsg] = useState("");
   const [found, setFound] = useState<{ quartier: Quartier; distanceKm: number } | null>(null);
   const [query, setQuery] = useState("");
-  const results = searchQuartiers(query);
+  const [geo, setGeo] = useState<GeoPlace[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  const seedMatches = searchQuartiers(query);
+
+  // autocomplétion réelle (debounce 300ms)
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setGeo([]);
+      setGeoLoading(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    setGeoLoading(true);
+    const t = setTimeout(async () => {
+      const r = await geocode(q, ctrl.signal);
+      setGeo(r);
+      setGeoLoading(false);
+    }, 300);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [query]);
 
   function locate() {
     if (!("geolocation" in navigator)) {
@@ -36,10 +62,10 @@ export default function LocateModal({
           return;
         }
         if (res.distanceKm <= 80) {
-          onSet(res.quartier.id); // assez proche → on valide direct
+          onSet(res.quartier);
           return;
         }
-        setFound(res); // loin (ex. hors Cameroun) → on propose mais on invite à chercher
+        setFound(res);
         setStatus("idle");
       },
       (err) => {
@@ -54,12 +80,15 @@ export default function LocateModal({
     );
   }
 
+  const seedIds = new Set(seedMatches.map((q) => q.nom.toLowerCase()));
+  const geoFiltered = geo.filter((p) => !seedIds.has(p.nom.toLowerCase()));
+
   return (
     <div
       className="anim-fade fixed inset-0 z-[900] flex items-end justify-center bg-black/55 sm:items-center"
       onClick={(e) => e.target === e.currentTarget && canClose && onClose()}
     >
-      <div className="anim-sheet w-full max-w-[460px] rounded-t-[22px] border-t border-[var(--line)] bg-[var(--surface)] px-5 pb-7 pt-3 sm:rounded-[22px] sm:border">
+      <div className="anim-sheet flex max-h-[88dvh] w-full max-w-[460px] flex-col rounded-t-[22px] border-t border-[var(--line)] bg-[var(--surface)] px-5 pb-7 pt-3 sm:rounded-[22px] sm:border">
         <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-[var(--line-strong)] sm:hidden" />
         <div className="mb-1 flex items-center justify-between">
           <h2 className="text-[19px] font-bold tracking-tight">Ta zone</h2>
@@ -97,7 +126,6 @@ export default function LocateModal({
           </span>
         </button>
 
-        {/* résultat auto */}
         {found && (
           <div className="mt-3 rounded-[12px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-4 py-3">
             <div className="flex items-center justify-between">
@@ -117,14 +145,14 @@ export default function LocateModal({
                 </div>
               </div>
               <button
-                onClick={() => onSet(found.quartier.id)}
+                onClick={() => onSet(found.quartier)}
                 className="flex items-center gap-1.5 rounded-full bg-[var(--cyan)] px-3.5 py-1.5 text-[13px] font-bold text-[var(--cyan-ink)]"
               >
                 <Check size={14} /> OK
               </button>
             </div>
             <p className="mt-2 text-[11px] text-[var(--txt-3)]">
-              Tu sembles loin des villes couvertes (Cameroun) — tu peux aussi choisir ta ville à la main 👇
+              Tu sembles loin des villes couvertes — tu peux aussi taper ton quartier ci-dessous 👇
             </p>
           </div>
         )}
@@ -140,35 +168,51 @@ export default function LocateModal({
           <div className="h-px flex-1 bg-[var(--line)]" /> ou <div className="h-px flex-1 bg-[var(--line)]" />
         </div>
 
-        {/* recherche manuelle */}
+        {/* recherche réelle (autocomplétion) */}
         <div className="flex h-11 items-center gap-2.5 rounded-[12px] border border-[var(--line)] bg-[var(--bg)] px-3">
           <Search size={16} className="text-[var(--txt-3)]" />
           <input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Saisis ton quartier ou ta ville…"
+            placeholder="Tape ton quartier (ex. Obobogo, Bastos…)"
             className="w-full bg-transparent text-sm outline-none placeholder:text-[var(--txt-3)]"
           />
+          {geoLoading && <Loader2 size={15} className="animate-spin text-[var(--txt-3)]" />}
         </div>
-        {query.trim() !== "" && (
-          <div className="mt-2 max-h-[210px] overflow-y-auto no-sb">
-            {results.length === 0 ? (
+
+        {query.trim().length >= 1 && (
+          <div className="mt-2 flex-1 overflow-y-auto no-sb">
+            {/* quartiers connus (instantané) */}
+            {seedMatches.map((q) => (
+              <button
+                key={`s-${q.id}`}
+                onClick={() => onSet(q)}
+                className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]"
+              >
+                <MapPin size={15} className="text-[var(--cyan)]" />
+                <span className="text-sm font-medium">{q.nom}</span>
+                <span className="ml-auto text-[11px] text-[var(--txt-3)]">
+                  {getVille(q.villeId)?.nom}
+                </span>
+              </button>
+            ))}
+            {/* lieux réels géocodés */}
+            {geoFiltered.map((p, i) => (
+              <button
+                key={`g-${i}`}
+                onClick={() => onSet(makeZone(p.nom, p.lat, p.lng))}
+                className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]"
+              >
+                <MapPin size={15} className="text-[var(--txt-3)]" />
+                <span className="truncate text-sm font-medium">{p.nom}</span>
+                <span className="ml-auto shrink-0 truncate pl-2 text-[11px] text-[var(--txt-3)]">
+                  {p.contexte || "Cameroun"}
+                </span>
+              </button>
+            ))}
+            {!geoLoading && seedMatches.length === 0 && geoFiltered.length === 0 && (
               <p className="px-2 py-3 text-sm text-[var(--txt-3)]">Aucun résultat.</p>
-            ) : (
-              results.map((q) => (
-                <button
-                  key={q.id}
-                  onClick={() => onSet(q.id)}
-                  className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left transition hover:bg-[var(--surface-2)]"
-                >
-                  <MapPin size={15} className="text-[var(--txt-3)]" />
-                  <span className="text-sm font-medium">{q.nom}</span>
-                  <span className="ml-auto text-[11px] text-[var(--txt-3)]">
-                    {getVille(q.villeId)?.nom}
-                  </span>
-                </button>
-              ))
             )}
           </div>
         )}
